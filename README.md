@@ -1,3 +1,4 @@
+
 # Sri Lankan Historical Sites Tourism Chatbot
 
 ## Research Project
@@ -14,7 +15,7 @@ Developing a multilingual LLM-based chatbot for Sri Lankan historical tourism us
 3. Install dependencies: `pip install -r requirements.txt`
 4. Configure environment variables in `.env`
 5. Run source-restricted Sri Lanka pipeline:
-	`python scripts/rag_pipeline/sri_lanka_research_pipeline.py --step all --allow-mock-embeddings`
+	python scripts/rag_pipeline/sri_lanka_research_pipeline.py --step all --allow-mock-embeddings`
 
 ## Research Timeline
 - Week 1-3: Data collection (155+ historical sites)
@@ -24,10 +25,14 @@ Developing a multilingual LLM-based chatbot for Sri Lankan historical tourism us
 
 ## Documentation
 See:
-- `docs/project/` for project-level guides
-- `docs/rag_pipeline/` for RAG implementation guides
+- docs/project/` for project-level guides
+- docs/rag_pipeline/` for RAG implementation guides
 
 
 uvicorn api.main:app --host 127.0.0.1 --port 8000
 cd frontend
 npm run dev
+
+# histori-lanka-ai-chatbot
+AI-powered chatbot for Sri Lankan historical tourism using RAG and Fine-Tuning
+
