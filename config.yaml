@@ -1,0 +1,43 @@
+project:
+  name: "Historical Sites Tourism Chatbot"
+  version: "1.0.0"
+  author: "Your Name"
+
+data:
+  raw_data_path: "data/raw"
+  processed_data_path: "data/processed"
+  target_sites: 155
+
+scraping:
+  wikipedia:
+    enabled: true
+    batch_size: 10
+    delay_seconds: 1
+  tourism_board:
+    enabled: true
+    delay_seconds: 2
+  archaeological:
+    enabled: true
+    delay_seconds: 2
+
+processing:
+  remove_duplicates: true
+  min_description_length: 100
+  max_description_length: 1000
+
+embeddings:
+  model: "text-embedding-3-small"
+  dimension: 1536
+  vectordb_type: "faiss"
+
+fine_tuning:
+  model: "gpt-3.5-turbo"
+  epochs: 3
+  batch_size: 8
+  learning_rate: 1e-5
+  training_data_path: "data/fine_tuning/fine_tune_data.jsonl"
+
+evaluation:
+  bleu_threshold: 0.5
+  rouge_threshold: 0.55
+  accuracy_threshold: 0.9
