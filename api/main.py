@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 import sys
 from typing import Any, Dict, List, Optional
@@ -37,14 +38,23 @@ class ChatResponse(BaseModel):
 
 app = FastAPI(title="Historical Sites Chat API", version="1.0.0")
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[
+
+def _build_allowed_origins() -> List[str]:
+    configured = os.getenv("ALLOWED_ORIGINS", "")
+    configured_origins = [origin.strip() for origin in configured.split(",") if origin.strip()]
+    local_origins = [
         "http://localhost:5173",
         "http://127.0.0.1:5173",
         "http://localhost:3000",
         "http://127.0.0.1:3000",
-    ],
+    ]
+    # Keep deterministic order and remove duplicates.
+    return list(dict.fromkeys(local_origins + configured_origins))
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=_build_allowed_origins(),
+    allow_origin_regex=r"https?://(localhost|127\.0\.0\.1):\d+",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

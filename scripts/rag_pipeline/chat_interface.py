@@ -35,6 +35,12 @@ FOCUS_STOP_WORDS = {
     "details", "key", "quick", "concise", "factual", "keep", "grounded", "data", "dataset"
 }
 
+TARGET_BOUNDARY_WORDS = {
+    "located", "location", "district", "province", "city", "town", "area",
+    "nearby", "nearest", "distance", "km", "kilometer", "kilometers",
+    "travel", "route", "from", "to", "in", "around", "near", "for",
+}
+
 
 class MockGPTGenerator:
     """Mock GPT generator for testing without Azure credentials"""
@@ -218,6 +224,108 @@ class ChatInterface:
         tokens = self._extract_focus_terms(user_input)
         return " ".join(tokens[:4])
 
+    def _extract_target_place(self, user_input: str) -> str:
+        """Extract explicit place phrase from common travel/location question patterns."""
+        text = self._normalize_text(user_input)
+        patterns = [
+            r"(?:from|around|near|in)\s+([a-z0-9\s]{3,60})",
+            r"(?:visit|about|to|for)\s+([a-z0-9\s]{3,60})",
+            r"(?:is|are)\s+([a-z0-9\s]{3,60})\s+(?:located|in)",
+            r"(?:district|province|city)\s+(?:is\s+)?([a-z0-9\s]{3,60})",
+        ]
+        for pattern in patterns:
+            match = re.search(pattern, text)
+            if not match:
+                continue
+            candidate = match.group(1).strip()
+            raw_tokens = [t for t in candidate.split() if t]
+            clipped_tokens = []
+            for tok in raw_tokens:
+                if tok in TARGET_BOUNDARY_WORDS:
+                    break
+                clipped_tokens.append(tok)
+
+            tokens = [t for t in clipped_tokens if t not in FOCUS_STOP_WORDS and len(t) > 2]
+            if tokens:
+                return " ".join(tokens[:4])
+
+        # Fallback: if query contains "from <place>"-style wording, try lexical tail extraction.
+        tail_match = re.search(r"(?:from|around|near)\s+([a-z0-9\s]{3,40})", text)
+        if tail_match:
+            tail_tokens = []
+            for tok in tail_match.group(1).strip().split():
+                if tok in TARGET_BOUNDARY_WORDS:
+                    break
+                if tok not in FOCUS_STOP_WORDS and len(tok) > 2:
+                    tail_tokens.append(tok)
+            if tail_tokens:
+                return " ".join(tail_tokens[:4])
+        return ""
+
+    def _query_requires_strict_place_match(self, user_input: str) -> bool:
+        text = self._normalize_text(user_input)
+        triggers = [
+            "nearby",
+            "nearest",
+            "from",
+            "province",
+            "district",
+            "city",
+            "located",
+            "distance",
+            "kilometer",
+            "km",
+            "travel from",
+        ]
+        return any(t in text for t in triggers)
+
+    def _is_nearby_query(self, user_input: str) -> bool:
+        text = self._normalize_text(user_input)
+        return ("nearby" in text or "nearest" in text) and ("from" in text or "around" in text or "near" in text)
+
+    def _build_nearby_response(self, selected_results, target_place: str) -> str:
+        target_tokens = set((target_place or "").split())
+        names = []
+        for item in selected_results or []:
+            name = (item.get("site_name") or "").strip()
+            if not name:
+                continue
+            name_norm_tokens = set(self._normalize_text(name).split())
+            if target_tokens and target_tokens.issubset(name_norm_tokens):
+                continue
+            if name not in names:
+                names.append(name)
+
+        if not names:
+            return (
+                f"I could not find reliable nearby-place entries for '{target_place}' in the retrieved sources. "
+                "Please try the exact place name or ask for a broader region."
+            )
+
+        return (
+            f"Based on retrieved context for {target_place.title()}, nearby/related places include: "
+            + ", ".join(names[:3])
+            + ". Exact inter-site distance in km is not available in current sources."
+        )
+
+    def _retrieval_matches_target(self, selected_results, target_place: str, strict_site_only: bool = False) -> bool:
+        if not target_place:
+            return True
+        target_tokens = [t for t in target_place.split() if t]
+        if not target_tokens:
+            return True
+
+        for item in selected_results or []:
+            site_name = self._normalize_text(item.get("site_name", ""))
+            if site_name and all(tok in site_name for tok in target_tokens):
+                return True
+            if strict_site_only:
+                continue
+            chunk_text = self._normalize_text(item.get("chunk_text", ""))
+            if chunk_text and len(target_tokens) <= 2 and all(tok in chunk_text for tok in target_tokens):
+                return True
+        return False
+
     def _lexical_metadata_fallback(self, focus_terms, focus_phrase: str = "", top_k: int = 3):
         metadata_cache = getattr(self.retriever, "metadata_cache", {}) or {}
         if not metadata_cache or not focus_terms:
@@ -366,7 +474,29 @@ class ChatInterface:
                 logger.warning("[-] No retriever available")
             
             # Step 2: Generate response
-            if self.generator and retrieval.get("selected_results"):
+            target_place = self._extract_target_place(user_input)
+            strict_match_needed = self._query_requires_strict_place_match(user_input)
+            target_match = self._retrieval_matches_target(
+                retrieval.get("selected_results", []),
+                target_place,
+                strict_site_only=strict_match_needed,
+            )
+
+            if self.generator and self._is_nearby_query(user_input) and target_place and target_match:
+                nearby_msg = self._build_nearby_response(retrieval.get("selected_results", []), target_place)
+                result = {
+                    "success": True,
+                    "user_query": user_input,
+                    "response": nearby_msg,
+                    "response_length": len(nearby_msg),
+                    "tokens_used": len(nearby_msg.split()),
+                    "model": "retrieval-nearby-guard",
+                    "timestamp": datetime.now().isoformat(),
+                    "style": style,
+                    "temperature": 0.0,
+                }
+                logger.info("[+] Nearby query answered via retrieval guard")
+            elif self.generator and retrieval.get("selected_results") and (not strict_match_needed or target_match):
                 result = self.generator.call_gpt_with_rag_context(
                     user_query=user_input,
                     rag_context=context,
@@ -376,6 +506,22 @@ class ChatInterface:
                     max_tokens=1000
                 )
                 logger.info(f"[+] Response generated ({result.get('response_length', 0)} chars)")
+            elif self.generator and strict_match_needed and target_place and not target_match:
+                fallback_msg = (
+                    f"I could not find retrieved records that clearly match '{target_place}' for this query. "
+                    "Please try the exact site/place name or rephrase your question."
+                )
+                result = {
+                    "success": True,
+                    "user_query": user_input,
+                    "response": fallback_msg,
+                    "response_length": len(fallback_msg),
+                    "tokens_used": len(fallback_msg.split()),
+                    "model": "retrieval-guard",
+                    "timestamp": datetime.now().isoformat(),
+                    "style": style,
+                    "temperature": 0.0,
+                }
             elif self.generator and retrieval.get("focus_terms"):
                 focus_label = " ".join(retrieval.get("focus_terms", []))
                 fallback_msg = (

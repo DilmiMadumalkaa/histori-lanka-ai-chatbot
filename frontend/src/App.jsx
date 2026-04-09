@@ -226,6 +226,7 @@ export default function App() {
   const [authError, setAuthError] = useState("");
   const [showAuthLogoImage, setShowAuthLogoImage] = useState(true);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const formRef = useRef(null);
   const chatStreamRef = useRef(null);
   const accountMenuRef = useRef(null);
@@ -388,6 +389,7 @@ export default function App() {
     setOpenRecentMenuId("");
     setQuery("");
     setError("");
+    setMobileSidebarOpen(false);
   }
 
   function handleStyleChange(e) {
@@ -752,7 +754,29 @@ export default function App() {
   }
 
   return (
-    <div className="chat-shell">
+    <div className={`chat-shell ${mobileSidebarOpen ? "sidebar-open" : ""}`}>
+      <header className="mobile-topbar">
+        <button
+          type="button"
+          className="mobile-menu-btn"
+          onClick={() => setMobileSidebarOpen((prev) => !prev)}
+          aria-label="Toggle sidebar"
+        >
+          <span />
+          <span />
+          <span />
+        </button>
+        <div className="mobile-topbar-title">HistoriLanka AI</div>
+        <button type="button" className="mobile-new-chat-btn" onClick={handleNewChat}>+ New</button>
+      </header>
+
+      <button
+        type="button"
+        className="mobile-overlay"
+        aria-label="Close sidebar"
+        onClick={() => setMobileSidebarOpen(false)}
+      />
+
       <aside className="chat-sidebar">
         <div className="sidebar-brand">
           <BrandLogo />
@@ -789,6 +813,7 @@ export default function App() {
                   onClick={() => {
                     setActiveSessionId(session.id);
                     setOpenRecentMenuId("");
+                    setMobileSidebarOpen(false);
                   }}
                 >
                   {session.title}
@@ -865,7 +890,7 @@ export default function App() {
                 onChange={(e) => setQuery(e.target.value)}
                 onKeyDown={handleComposerKeyDown}
                 placeholder="Ask anything about Sri Lankan historical sites..."
-                rows={2}
+                rows={1}
               />
               <button type="submit" disabled={loading}>
                 {loading ? "Sending..." : <SendIcon />}
@@ -947,7 +972,7 @@ export default function App() {
                 onChange={(e) => setQuery(e.target.value)}
                 onKeyDown={handleComposerKeyDown}
                 placeholder="Ask anything about Sri Lankan historical sites..."
-                rows={2}
+                rows={1}
               />
               <button type="submit" disabled={loading}>
                 {loading ? "Sending..." : <SendIcon />}
