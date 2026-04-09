@@ -1,59 +1,68 @@
-# Deploy Historical Sites Chatbot on Render
+# Free No-Card Hosting (Hugging Face + Vercel)
 
-This repo is configured to deploy as two Render services:
-- FastAPI backend (Python web service)
-- React frontend (static site)
+If Render asks for card verification, use this no-card route:
+- Backend API on Hugging Face Spaces (Docker)
+- Frontend on Vercel (Vite)
 
-## 1. Push code to GitHub
+## 1. Push your repo to GitHub
 
-Render deploys from GitHub, so push your current branch first.
+Both platforms deploy directly from GitHub.
 
-## 2. Create Render services from blueprint
+## 2. Deploy backend to Hugging Face Spaces
 
-1. In Render dashboard, click New + then Blueprint.
-2. Select your GitHub repository.
-3. Render reads render.yaml and creates:
-   - historical-sites-chatbot-api
-   - historical-sites-chatbot-frontend
+1. Create a new Space at https://huggingface.co/spaces
+2. Choose:
+   - SDK: Docker
+   - Visibility: Public or Private (your choice)
+3. Connect/select this repository.
+4. Spaces will build using the root Dockerfile.
 
-## 3. Configure backend environment variables
+### Backend Secrets in Space Settings
 
-Set these values in the backend service:
+Go to Space -> Settings -> Variables and secrets.
+Add these as Secrets:
 - AZURE_OPENAI_API_KEY
 - AZURE_OPENAI_ENDPOINT
-- AZURE_OPENAI_CHAT_DEPLOYMENT (use your fine-tuned deployment, e.g. historilanka-ft-chat)
-- AZURE_OPENAI_GPT_DEPLOYMENT (same as above)
-- AZURE_OPENAI_DEPLOYMENT (same as above)
+- AZURE_OPENAI_CHAT_DEPLOYMENT
+- AZURE_OPENAI_GPT_DEPLOYMENT
+- AZURE_OPENAI_DEPLOYMENT
 - AZURE_OPENAI_EMBEDDING_DEPLOYMENT
 - PINECONE_API_KEY
 
-Defaults already set by render.yaml:
-- AZURE_OPENAI_API_VERSION=2024-02-01
+Add these as Variables:
+- AZURE_OPENAI_API_VERSION=2024-12-01-preview
 - AZURE_OPENAI_EMBEDDING_API_VERSION=2024-02-01
-- PINECONE_INDEX_NAME=historical-sites-sl
 - PINECONE_ENV=us-east-1
+- PINECONE_INDEX_NAME=historical-sites-sl
 
-## 4. Connect frontend to backend
+Do not set ALLOWED_ORIGINS yet. Set it after frontend URL is live.
 
-After backend is live, set frontend variable:
-- VITE_API_URL=https://<your-backend>.onrender.com
+## 3. Deploy frontend to Vercel
 
-Redeploy frontend after saving this value.
+1. Open https://vercel.com/new
+2. Import this repository.
+3. For Root Directory, choose frontend.
+4. Add Environment Variable:
+   - VITE_API_URL=https://<your-space-subdomain>.hf.space
+5. Deploy.
 
-## 5. Set backend CORS for frontend URL
+## 4. Set backend CORS for frontend
 
-After frontend is live, set backend variable:
-- ALLOWED_ORIGINS=https://<your-frontend>.onrender.com
+After Vercel gives your frontend URL:
+- Add/update backend variable in Hugging Face Space:
+  - ALLOWED_ORIGINS=https://<your-vercel-domain>
 
-For multiple domains, use comma-separated values.
+If you have multiple domains, use comma-separated URLs.
 
-## 6. Verify
+Then restart/rebuild the Space.
 
-- Backend health should return status ok:
-  - https://<your-backend>.onrender.com/api/health
-- Open frontend and send a test prompt.
+## 5. Verify
 
-## Notes
+- API health:
+  - https://<your-space-subdomain>.hf.space/api/health
+- Frontend chat:
+  - open your Vercel URL and send a prompt
 
-- Free Render instances may sleep when idle.
-- Keep secrets only in Render environment variables.
+## 6. If you need fully local free hosting
+
+You can also keep backend local and expose it with Cloudflare Tunnel (no card), then point Vercel VITE_API_URL to that tunnel URL.
