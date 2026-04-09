@@ -27,6 +27,7 @@ See:
 - `docs/project/` for project-level guides
 - `docs/rag_pipeline/` for RAG implementation guides
 
+running commands
 uvicorn api.main:app --host 127.0.0.1 --port 8001
 cd frontend
 npm run dev
